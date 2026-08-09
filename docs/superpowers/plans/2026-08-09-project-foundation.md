@@ -173,7 +173,7 @@ git commit -m "build: configure frontend toolchain"
 - Consumes: React and Vitest toolchain from Task 2.
 - Produces: default React component `App` and browser entry `src/main.tsx`.
 
-- [ ] **Step 1: Write the failing page behavior test**
+- [x] **Step 1: Write the failing page behavior test**
 
 ```tsx
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -191,7 +191,7 @@ describe('App', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -201,7 +201,7 @@ npm test -- src/app/App.test.tsx
 
 Expected: FAIL because `./App` does not exist. The failure must identify the missing page implementation.
 
-- [ ] **Step 3: Implement only the placeholder component**
+- [x] **Step 3: Implement only the placeholder component**
 
 ```tsx
 function App() {
@@ -218,11 +218,11 @@ function App() {
 export default App
 ```
 
-- [ ] **Step 4: Add the browser entry and minimal CSS**
+- [x] **Step 4: Add the browser entry and minimal CSS**
 
 `src/main.tsx` renders `App` inside `StrictMode` and imports `src/styles/global.css`. CSS provides only a neutral responsive centered card, system fonts, readable contrast, and `box-sizing`; it must not introduce game controls, vehicles, HUD, or third-party assets.
 
-- [ ] **Step 5: Run the test and verify GREEN**
+- [x] **Step 5: Run the test and verify GREEN**
 
 Run:
 
@@ -232,7 +232,7 @@ npm test -- src/app/App.test.tsx
 
 Expected: one test passes with no warnings.
 
-- [ ] **Step 6: Commit the tested placeholder page**
+- [x] **Step 6: Commit the tested placeholder page**
 
 ```bash
 git add src/app/App.test.tsx src/app/App.tsx src/main.tsx src/styles/global.css
