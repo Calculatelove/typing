@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { mod } from './math'
-import { createClosedTrack, createDefaultTrack, sampleTrackAt } from './track'
+import {
+  createClosedTrack,
+  createDefaultTrack,
+  sampleTrackAt,
+  validateSampledRoadSpacing,
+} from './track'
+import type { TrackSample } from './types'
 
 describe('mod', () => {
   it('把负数和超出一圈的值安全规范到正区间', () => {
@@ -107,6 +113,27 @@ describe('闭合道路', () => {
         ],
         { roadWidth: 100 },
       ),
+    ).toThrow(/间距/)
+  })
+
+  it('按折线段中部的最短距离检查错位的长路段', () => {
+    const sample = (distance: number, x: number, y: number): TrackSample => ({
+      distance,
+      position: { x, y },
+      tangent: { x: 1, y: 0 },
+      normal: { x: 0, y: 1 },
+      heading: 0,
+    })
+    const staggeredParallelSegments = [
+      sample(0, 0, 0),
+      sample(100, 100, 0),
+      sample(300, 50, 4),
+      sample(400, 150, 4),
+      sample(600, 0, 0),
+    ]
+
+    expect(() =>
+      validateSampledRoadSpacing(staggeredParallelSegments, 600, 10),
     ).toThrow(/间距/)
   })
 

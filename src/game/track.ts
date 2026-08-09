@@ -154,6 +154,50 @@ function segmentsIntersect(
   )
 }
 
+function distanceFromPointToSegment(
+  point: Vector2,
+  segmentStart: Vector2,
+  segmentEnd: Vector2,
+): number {
+  const segmentX = segmentEnd.x - segmentStart.x
+  const segmentY = segmentEnd.y - segmentStart.y
+  const squaredLength = segmentX * segmentX + segmentY * segmentY
+  if (squaredLength <= Number.EPSILON) {
+    return Math.hypot(point.x - segmentStart.x, point.y - segmentStart.y)
+  }
+
+  const projection = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point.x - segmentStart.x) * segmentX +
+        (point.y - segmentStart.y) * segmentY) / squaredLength,
+    ),
+  )
+  return Math.hypot(
+    point.x - (segmentStart.x + segmentX * projection),
+    point.y - (segmentStart.y + segmentY * projection),
+  )
+}
+
+function distanceBetweenSegments(
+  firstStart: Vector2,
+  firstEnd: Vector2,
+  secondStart: Vector2,
+  secondEnd: Vector2,
+): number {
+  if (segmentsIntersect(firstStart, firstEnd, secondStart, secondEnd)) {
+    return 0
+  }
+
+  return Math.min(
+    distanceFromPointToSegment(firstStart, secondStart, secondEnd),
+    distanceFromPointToSegment(firstEnd, secondStart, secondEnd),
+    distanceFromPointToSegment(secondStart, firstStart, firstEnd),
+    distanceFromPointToSegment(secondEnd, firstStart, firstEnd),
+  )
+}
+
 function validateControlPointTurns(controlPoints: readonly Vector2[]): void {
   for (let index = 0; index < controlPoints.length; index += 1) {
     const previous = controlPointAt(controlPoints, index - 1)
@@ -195,24 +239,40 @@ function validateNoSelfIntersection(points: readonly CurvePoint[]): void {
   }
 }
 
-function validateRoadSpacing(samples: readonly TrackSample[], length: number, roadWidth: number): void {
-  const closingSampleIndex = samples.length - 1
+export function validateSampledRoadSpacing(
+  samples: readonly TrackSample[],
+  length: number,
+  roadWidth: number,
+): void {
+  const segmentCount = samples.length - 1
   const localArcDistance = roadWidth * 2.5
   const minimumSpacing = roadWidth * MIN_ROAD_SPACING_FACTOR
 
-  for (let firstIndex = 0; firstIndex < closingSampleIndex; firstIndex += 1) {
-    const first = samples[firstIndex]!
-    for (let secondIndex = firstIndex + 1; secondIndex < closingSampleIndex; secondIndex += 1) {
-      const second = samples[secondIndex]!
-      const forwardArcDistance = second.distance - first.distance
+  for (let firstIndex = 0; firstIndex < segmentCount; firstIndex += 1) {
+    const firstStart = samples[firstIndex]!
+    const firstEnd = samples[firstIndex + 1]!
+    const firstMiddleDistance = (firstStart.distance + firstEnd.distance) / 2
+    for (let secondIndex = firstIndex + 1; secondIndex < segmentCount; secondIndex += 1) {
+      const firstEndIndex = (firstIndex + 1) % segmentCount
+      const secondEndIndex = (secondIndex + 1) % segmentCount
+      if (firstEndIndex === secondIndex || secondEndIndex === firstIndex) {
+        continue
+      }
+
+      const secondStart = samples[secondIndex]!
+      const secondEnd = samples[secondIndex + 1]!
+      const secondMiddleDistance = (secondStart.distance + secondEnd.distance) / 2
+      const forwardArcDistance = secondMiddleDistance - firstMiddleDistance
       const shortestArcDistance = Math.min(forwardArcDistance, length - forwardArcDistance)
       if (shortestArcDistance <= localArcDistance) {
         continue
       }
       if (
-        Math.hypot(
-          second.position.x - first.position.x,
-          second.position.y - first.position.y,
+        distanceBetweenSegments(
+          firstStart.position,
+          firstEnd.position,
+          secondStart.position,
+          secondEnd.position,
         ) < minimumSpacing
       ) {
         throw new RangeError('不相邻路段间距小于道路安全宽度。')
@@ -358,7 +418,7 @@ export function createClosedTrack(
   }
   samples.push(toTrackSample(first, cumulativeDistance))
   validateNoSelfIntersection(curvePoints)
-  validateRoadSpacing(samples, cumulativeDistance, roadWidth)
+  validateSampledRoadSpacing(samples, cumulativeDistance, roadWidth)
 
   return {
     controlPoints: controlPoints.map((point) => ({ ...point })),
