@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest'
 import App from './App'
 
 describe('App', () => {
-  it('shows the project initialization message', () => {
+  it('shows only the accessible project initialization message', () => {
     const markup = renderToStaticMarkup(<App />)
+    const visibleText = markup.replace(/<[^>]+>/g, '')
 
-    expect(markup).toContain('<h1>Typing Gaming</h1>')
-    expect(markup).toContain('<p>Project initialized successfully.</p>')
+    expect(visibleText).toBe('Typing GamingProject initialized successfully.')
+    expect(markup).toContain('aria-labelledby="project-title"')
+    expect(markup).toContain('<h1 id="project-title">Typing Gaming</h1>')
   })
 })

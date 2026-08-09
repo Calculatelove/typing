@@ -105,6 +105,14 @@ lead = mod(direction × (thiefPosition - policePosition), L)
 
 `lead` 接近零表示小偷在警察前方且可能被追上；`lead` 接近 `L` 表示小偷接近领先整圈。抓捕、套圈和掉头禁止使用二维欧氏距离。
 
+初始追逐距离必须位于抓捕区和掉头区之间：
+
+```text
+catchDistance < initialLead < L - reverseThreshold
+```
+
+初始化验证和后续自动测试必须覆盖该不变量，防止开局立即抓捕或立即掉头。
+
 ## 8. 快套圈掉头和抓捕
 
 参数满足：
