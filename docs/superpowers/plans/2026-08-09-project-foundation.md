@@ -85,7 +85,7 @@ git commit -m "docs: establish project requirements and workflow"
 - Consumes: Node.js 22.12+ and npm.
 - Produces: commands `dev`, `build`, `test`, `test:watch`, `typecheck`, `lint`, and `preview`; Vite production base `/typing/`.
 
-- [ ] **Step 1: Create `package.json` with exact script contracts**
+- [x] **Step 1: Create `package.json` with exact script contracts**
 
 Use this package shape, with dependency ranges verified from the current official Vite React TypeScript template and current Vitest release:
 
@@ -122,19 +122,19 @@ Use this package shape, with dependency ranges verified from the current officia
 }
 ```
 
-- [ ] **Step 2: Create strict TypeScript project references**
+- [x] **Step 2: Create strict TypeScript project references**
 
 `tsconfig.json` references `tsconfig.app.json` and `tsconfig.node.json`. The app config targets ES2023, includes DOM and `vite/client`, uses bundler resolution, `react-jsx`, `noEmit`, unused checks, and `erasableSyntaxOnly`. The node config targets ES2023, uses NodeNext, includes Node types, and checks both `vite.config.ts` and `vitest.config.ts`.
 
-- [ ] **Step 3: Configure Vite and Vitest**
+- [x] **Step 3: Configure Vite and Vitest**
 
 `vite.config.ts` must export `defineConfig({ base: '/typing/', plugins: [react()] })`. `vitest.config.ts` must use the React plugin, Node environment, `src/**/*.test.{ts,tsx}` inclusion, and no global test APIs.
 
-- [ ] **Step 4: Configure lint and the HTML entry**
+- [x] **Step 4: Configure lint and the HTML entry**
 
 Use the official template's Oxlint React/TypeScript plugins and hook rules. `index.html` contains no downloaded favicon, uses `<title>Typing Gaming</title>`, provides `#root`, and loads `/src/main.tsx` through Vite.
 
-- [ ] **Step 5: Install dependencies and lock the graph**
+- [x] **Step 5: Install dependencies and lock the graph**
 
 Run:
 
@@ -144,7 +144,7 @@ npm install
 
 Expected: `package-lock.json` is created and npm exits successfully.
 
-- [ ] **Step 6: Verify the configuration is accepted before UI implementation**
+- [x] **Step 6: Verify the configuration is accepted before UI implementation**
 
 Run:
 
@@ -154,7 +154,7 @@ npm run typecheck
 
 Expected: failure because `src/main.tsx` does not exist yet. This is a structural precondition, not the feature RED test.
 
-- [ ] **Step 7: Commit the toolchain**
+- [x] **Step 7: Commit the toolchain**
 
 ```bash
 git add package.json package-lock.json index.html vite.config.ts vitest.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json .oxlintrc.json
