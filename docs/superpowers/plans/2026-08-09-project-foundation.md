@@ -289,7 +289,7 @@ git commit -m "chore: reserve application module boundaries"
 - Consumes: all phase-one deliverables.
 - Produces: fresh evidence that every required quality gate passes and no out-of-scope feature was added.
 
-- [ ] **Step 1: Run the complete test suite**
+- [x] **Step 1: Run the complete test suite**
 
 ```bash
 npm test
@@ -297,7 +297,7 @@ npm test
 
 Expected: all tests pass, including the placeholder page test.
 
-- [ ] **Step 2: Run standalone TypeScript checking**
+- [x] **Step 2: Run standalone TypeScript checking**
 
 ```bash
 npm run typecheck
@@ -305,7 +305,7 @@ npm run typecheck
 
 Expected: exit code 0 with no TypeScript errors.
 
-- [ ] **Step 3: Run lint**
+- [x] **Step 3: Run lint**
 
 ```bash
 npm run lint
@@ -313,7 +313,7 @@ npm run lint
 
 Expected: exit code 0 with no lint errors.
 
-- [ ] **Step 4: Run production build**
+- [x] **Step 4: Run production build**
 
 ```bash
 npm run build
@@ -321,7 +321,7 @@ npm run build
 
 Expected: exit code 0, a `dist/` build, and generated asset references under `/typing/`.
 
-- [ ] **Step 5: Inspect the built entry and repository scope**
+- [x] **Step 5: Inspect the built entry and repository scope**
 
 Run:
 
@@ -333,7 +333,7 @@ git diff --check
 
 Expected: the built HTML contains `/typing/`; `node_modules/`, `dist/`, and prompt files are not staged; no whitespace errors exist; no AI, article corpus, game controls, or complete UI has been implemented.
 
-- [ ] **Step 6: Commit any verification-only corrections**
+- [x] **Step 6: Commit any verification-only corrections**
 
 Only if verification required changes, stage the exact corrected files and commit:
 
