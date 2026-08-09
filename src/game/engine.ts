@@ -1,6 +1,7 @@
 import { stepPursuit, validatePursuitConfig } from './pursuit'
 import type { PursuitConfig, PursuitState, Track } from './types'
 import { createVehicle } from './vehicle'
+import { createWorldPursuitConfig } from './worldConfig'
 
 export const FIXED_STEP_SECONDS = 1 / 60
 export const MAX_FIXED_STEPS_PER_FRAME = 6
@@ -15,14 +16,13 @@ export interface DebugPursuit {
   readonly config: PursuitConfig
 }
 
+export type PreparePursuitStep = (
+  state: PursuitState,
+  stepSeconds: number,
+) => PursuitState
+
 export function createDebugPursuit(track: Track): DebugPursuit {
-  const config: PursuitConfig = {
-    catchDistance: track.length * 0.01,
-    reverseThreshold: track.length * 0.1,
-    reverseHysteresis: track.length * 0.02,
-    reverseCooldownSeconds: 0.75,
-    maxDeltaSeconds: 0.1,
-  }
+  const config: PursuitConfig = createWorldPursuitConfig(track)
   validatePursuitConfig(track.length, config)
 
   const policePosition = track.length * 0.15
@@ -45,6 +45,7 @@ export function advancePursuitFrame(
   frame: PursuitFrameState,
   frameDeltaSeconds: number,
   config: PursuitConfig,
+  prepareStep?: PreparePursuitStep,
 ): PursuitFrameState {
   if (config.maxDeltaSeconds < FIXED_STEP_SECONDS) {
     throw new RangeError('最大 delta time 不能小于固定时间步。')
@@ -63,6 +64,7 @@ export function advancePursuitFrame(
     completedSteps < MAX_FIXED_STEPS_PER_FRAME &&
     !state.captured
   ) {
+    if (prepareStep !== undefined) state = prepareStep(state, FIXED_STEP_SECONDS)
     state = stepPursuit(track, state, FIXED_STEP_SECONDS, config)
     accumulatorSeconds -= FIXED_STEP_SECONDS
     completedSteps += 1

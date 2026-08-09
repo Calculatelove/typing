@@ -1,0 +1,17 @@
+export const PLAYER_SPEED_CONFIG = {
+  performanceWindowSeconds: 3,
+  minimumObservationSeconds: 1,
+  maximumPerformanceRate: 140,
+  referencePerformanceRate: 50,
+  referenceLapSeconds: 90,
+  maximumLapSeconds: 34,
+  comboStep: 0.004,
+  comboMaximum: 1.1,
+  errorPenaltyMinimum: 0.55,
+  errorRecoveryTauSeconds: 0.7,
+  idleDelaySeconds: 0.75,
+  idleStopSeconds: 4,
+  accelerationTauSeconds: 0.3,
+  decelerationTauSeconds: 0.14,
+  maximumDeltaSeconds: 0.1,
+} as const

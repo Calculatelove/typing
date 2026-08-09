@@ -6,6 +6,7 @@ import type {
   TrackSample,
   Vector2,
 } from './types'
+import { DEFAULT_WORLD_ROAD_WIDTH, WORLD_SCALE } from './worldConfig'
 
 const DEFAULT_SAMPLES_PER_SEGMENT = 64
 const DEFAULT_ROAD_WIDTH = 72
@@ -13,7 +14,7 @@ const DEFAULT_DECORATION_SEED = 2_026_080_9
 const MAX_CONTROL_POINT_TURN = Math.PI * (165 / 180)
 const MIN_ROAD_SPACING_FACTOR = 1.05
 
-export const DEFAULT_TRACK_CONTROL_POINTS: readonly Vector2[] = [
+const BASE_TRACK_CONTROL_POINTS: readonly Vector2[] = [
   { x: -520, y: -80 },
   { x: -420, y: -330 },
   { x: -120, y: -430 },
@@ -27,6 +28,10 @@ export const DEFAULT_TRACK_CONTROL_POINTS: readonly Vector2[] = [
   { x: -330, y: 420 },
   { x: -560, y: 180 },
 ]
+
+export const DEFAULT_TRACK_CONTROL_POINTS: readonly Vector2[] = BASE_TRACK_CONTROL_POINTS.map(
+  ({ x, y }) => ({ x: x * WORLD_SCALE, y: y * WORLD_SCALE }),
+)
 
 interface CurvePoint {
   readonly position: Vector2
@@ -432,7 +437,7 @@ export function createClosedTrack(
 }
 
 export function createDefaultTrack(): Track {
-  return createClosedTrack(DEFAULT_TRACK_CONTROL_POINTS)
+  return createClosedTrack(DEFAULT_TRACK_CONTROL_POINTS, { roadWidth: DEFAULT_WORLD_ROAD_WIDTH })
 }
 
 export function sampleTrackAt(track: Track, distance: number): TrackSample {

@@ -1,238 +1,153 @@
-import type { PursuitState, Track, TrackDecoration, VehicleState } from './types'
+import type { CameraMode } from './camera'
+import { projectWorldPoint, type CameraState, type Viewport } from './projection'
+import type { PursuitState, Track, TrackDecoration, Vector2, VehicleState } from './types'
+import { VEHICLE_VISUAL } from './worldConfig'
 
-export interface DebugViewport {
-  readonly width: number
-  readonly height: number
+export interface RenderSceneOptions {
+  readonly camera: CameraState
+  readonly mode: CameraMode
+  readonly pixelRatio?: number
 }
 
-interface CameraTransform {
-  readonly centerX: number
-  readonly centerY: number
-  readonly scale: number
-}
-
-function createCamera(track: Track, viewport: DebugViewport): CameraTransform {
-  const worldWidth = track.bounds.maxX - track.bounds.minX + track.roadWidth * 5
-  const worldHeight = track.bounds.maxY - track.bounds.minY + track.roadWidth * 5
-  return {
-    centerX: (track.bounds.minX + track.bounds.maxX) / 2,
-    centerY: (track.bounds.minY + track.bounds.maxY) / 2,
-    scale: Math.min(viewport.width / worldWidth, viewport.height / worldHeight),
-  }
-}
-
-function traceTrack(context: CanvasRenderingContext2D, track: Track): void {
-  context.beginPath()
-  for (let index = 0; index < track.samples.length; index += 1) {
-    const { position } = track.samples[index]!
-    if (index === 0) {
-      context.moveTo(position.x, position.y)
-    } else {
-      context.lineTo(position.x, position.y)
-    }
-  }
-  context.closePath()
-}
-
-function roundedRectangle(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-): void {
-  const safeRadius = Math.min(radius, width / 2, height / 2)
-  context.beginPath()
-  context.moveTo(x + safeRadius, y)
-  context.arcTo(x + width, y, x + width, y + height, safeRadius)
-  context.arcTo(x + width, y + height, x, y + height, safeRadius)
-  context.arcTo(x, y + height, x, y, safeRadius)
-  context.arcTo(x, y, x + width, y, safeRadius)
-  context.closePath()
-}
-
-function withDecorationTransform(
-  context: CanvasRenderingContext2D,
+export function shouldRenderDecorationNearFocus(
   decoration: TrackDecoration,
-  draw: () => void,
-): void {
-  context.save()
-  context.translate(decoration.position.x, decoration.position.y)
-  context.rotate(decoration.heading)
-  context.scale(decoration.scale, decoration.scale)
-  draw()
-  context.restore()
-}
-
-function drawBuilding(
-  context: CanvasRenderingContext2D,
-  decoration: TrackDecoration,
-): void {
-  const width = 54 + (decoration.variant % 3) * 14
-  const height = 42 + (decoration.variant % 4) * 10
-  withDecorationTransform(context, decoration, () => {
-    roundedRectangle(context, -width / 2, -height / 2, width, height, 7)
-    context.fillStyle = ['#d9aa76', '#c98572', '#8aa6a3', '#bda5d2'][decoration.variant % 4]!
-    context.fill()
-    context.strokeStyle = '#243b46'
-    context.lineWidth = 3
-    context.stroke()
-
-    context.fillStyle = '#f5df9d'
-    const windowY = -height / 2 + 11
-    for (const windowX of [-width * 0.22, width * 0.22]) {
-      context.fillRect(windowX - 4, windowY, 8, 7)
-    }
-    context.fillStyle = '#4a6872'
-    context.fillRect(-5, height / 2 - 14, 10, 14)
-  })
-}
-
-function drawTree(
-  context: CanvasRenderingContext2D,
-  decoration: TrackDecoration,
-): void {
-  withDecorationTransform(context, decoration, () => {
-    context.fillStyle = '#6d4931'
-    context.fillRect(-3, -2, 6, 18)
-    context.beginPath()
-    context.arc(0, -8, 15, 0, Math.PI * 2)
-    context.fillStyle = '#4f8b62'
-    context.fill()
-    context.beginPath()
-    context.arc(-8, -4, 8, 0, Math.PI * 2)
-    context.arc(8, -4, 8, 0, Math.PI * 2)
-    context.fillStyle = '#6faa73'
-    context.fill()
-  })
-}
-
-function drawStreetLight(
-  context: CanvasRenderingContext2D,
-  decoration: TrackDecoration,
-): void {
-  withDecorationTransform(context, decoration, () => {
-    context.strokeStyle = '#344b56'
-    context.lineWidth = 3
-    context.beginPath()
-    context.moveTo(0, 11)
-    context.lineTo(0, -16)
-    context.lineTo(8, -16)
-    context.stroke()
-    context.beginPath()
-    context.arc(10, -14, 5, 0, Math.PI * 2)
-    context.fillStyle = '#ffe39c'
-    context.fill()
-  })
-}
-
-function drawDecorations(context: CanvasRenderingContext2D, track: Track): void {
-  for (const decoration of track.decorations) {
-    if (decoration.kind === 'building') {
-      drawBuilding(context, decoration)
-    } else if (decoration.kind === 'tree') {
-      drawTree(context, decoration)
-    } else {
-      drawStreetLight(context, decoration)
-    }
-  }
-}
-
-function drawRoad(context: CanvasRenderingContext2D, track: Track): void {
-  context.lineCap = 'round'
-  context.lineJoin = 'round'
-
-  traceTrack(context, track)
-  context.strokeStyle = '#c7d2d0'
-  context.lineWidth = track.roadWidth + 18
-  context.stroke()
-
-  traceTrack(context, track)
-  context.strokeStyle = '#33434c'
-  context.lineWidth = track.roadWidth
-  context.stroke()
-
-  context.save()
-  context.setLineDash([18, 17])
-  traceTrack(context, track)
-  context.strokeStyle = '#e3d89a'
-  context.lineWidth = 3
-  context.stroke()
-  context.restore()
-}
-
-function drawVehicle(context: CanvasRenderingContext2D, vehicle: VehicleState): void {
-  const isPolice = vehicle.role === 'police'
-  context.save()
-  context.translate(vehicle.worldPosition.x, vehicle.worldPosition.y)
-  context.rotate(vehicle.heading)
-
-  context.fillStyle = '#17242b'
-  for (const wheelX of [-12, 12]) {
-    for (const wheelY of [-10, 10]) {
-      roundedRectangle(context, wheelX - 5, wheelY - 3, 10, 6, 2)
-      context.fill()
-    }
-  }
-
-  roundedRectangle(context, -20, -11, 40, 22, 8)
-  context.fillStyle = isPolice ? '#3ca8cf' : '#e57b45'
-  context.fill()
-  context.strokeStyle = '#142c36'
-  context.lineWidth = 2.5
-  context.stroke()
-
-  roundedRectangle(context, -7, -8, 15, 16, 4)
-  context.fillStyle = '#dff5f5'
-  context.fill()
-
-  context.strokeStyle = isPolice ? '#f1f8fb' : '#ffe2a3'
-  context.lineWidth = 2.5
-  context.beginPath()
-  context.moveTo(-3, 6)
-  context.lineTo(2, 0)
-  context.lineTo(-1, 0)
-  context.lineTo(4, -6)
-  context.stroke()
-
-  if (isPolice) {
-    context.fillStyle = '#ee5e63'
-    context.fillRect(-5, -14, 5, 4)
-    context.fillStyle = '#63d0ec'
-    context.fillRect(0, -14, 5, 4)
-  }
-
-  context.fillStyle = '#fff3ca'
-  context.beginPath()
-  context.arc(19, 0, 3.5, 0, Math.PI * 2)
-  context.fill()
-  context.restore()
-}
-
-export function renderDebugScene(
-  context: CanvasRenderingContext2D,
-  track: Track,
   state: PursuitState,
-  viewport: DebugViewport,
-): void {
-  const camera = createCamera(track, viewport)
-  const background = context.createLinearGradient(0, 0, 0, viewport.height)
-  background.addColorStop(0, '#d7ebe4')
-  background.addColorStop(1, '#b8d3c7')
+  mode: CameraMode,
+  roadWidth: number,
+): boolean {
+  if (mode === 'overview' || decoration.kind !== 'building') return true
+  const focus = mode === 'followThief' ? state.thief : state.police
+  return Math.hypot(
+    decoration.position.x - focus.worldPosition.x,
+    decoration.position.y - focus.worldPosition.y,
+  ) >= roadWidth * 3
+}
 
-  context.setTransform(1, 0, 0, 1, 0, 0)
-  context.clearRect(0, 0, viewport.width, viewport.height)
-  context.fillStyle = background
-  context.fillRect(0, 0, viewport.width, viewport.height)
+function path(context: CanvasRenderingContext2D, points: readonly Vector2[]): void {
+  context.beginPath()
+  points.forEach((point, index) => index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y))
+  context.closePath()
+}
 
-  context.save()
-  context.translate(viewport.width / 2, viewport.height / 2)
-  context.scale(camera.scale, camera.scale)
-  context.translate(-camera.centerX, -camera.centerY)
-  drawDecorations(context, track)
-  drawRoad(context, track)
-  drawVehicle(context, state.police)
-  drawVehicle(context, state.thief)
+function polygon(context: CanvasRenderingContext2D, points: readonly Vector2[], fill: string, stroke?: string): void {
+  path(context, points)
+  context.fillStyle = fill
+  context.fill()
+  if (stroke) { context.strokeStyle = stroke; context.stroke() }
+}
+
+function projectedTrack(track: Track, camera: CameraState, viewport: Viewport, offsetY = 0): Vector2[] {
+  return track.samples.map(({ position }) => {
+    const point = projectWorldPoint(position, camera, viewport)
+    return { x: point.x, y: point.y + offsetY * camera.zoom }
+  })
+}
+
+function drawGround(context: CanvasRenderingContext2D, viewport: Viewport, camera: CameraState): void {
+  const gradient = context.createLinearGradient(0, 0, 0, viewport.height)
+  gradient.addColorStop(0, '#b8d5c5'); gradient.addColorStop(1, '#8eb6a5')
+  context.fillStyle = gradient; context.fillRect(0, 0, viewport.width, viewport.height)
+  context.save(); context.strokeStyle = 'rgba(65,105,91,.14)'; context.lineWidth = 1
+  const spacing = Math.max(90, 220 * camera.zoom)
+  const shift = ((camera.position.x * camera.zoom) % spacing + spacing) % spacing
+  for (let x = -spacing - shift; x < viewport.width + spacing; x += spacing) {
+    context.beginPath(); context.moveTo(x, 0); context.lineTo(x + viewport.height * .22, viewport.height); context.stroke()
+  }
+  for (let y = 0; y < viewport.height + spacing; y += spacing) {
+    context.beginPath(); context.moveTo(0, y); context.lineTo(viewport.width, y); context.stroke()
+  }
   context.restore()
+}
+
+function drawRoad(context: CanvasRenderingContext2D, track: Track, camera: CameraState, viewport: Viewport): void {
+  const points = projectedTrack(track, camera, viewport)
+  const width = track.roadWidth * camera.zoom * .86
+  context.lineCap = 'round'; context.lineJoin = 'round'
+  path(context, points); context.strokeStyle = 'rgba(29,45,48,.35)'; context.lineWidth = width + 30 * camera.zoom; context.stroke()
+  const lower = projectedTrack(track, camera, viewport, 12)
+  path(context, lower); context.strokeStyle = '#657b78'; context.lineWidth = width + 22 * camera.zoom; context.stroke()
+  path(context, points); context.strokeStyle = '#d5d5c7'; context.lineWidth = width + 18 * camera.zoom; context.stroke()
+  path(context, points); context.strokeStyle = '#405059'; context.lineWidth = width; context.stroke()
+  path(context, points); context.strokeStyle = 'rgba(255,255,255,.16)'; context.lineWidth = Math.max(2, 3 * camera.zoom); context.stroke()
+  context.save(); context.setLineDash([24 * camera.zoom, 24 * camera.zoom]); path(context, points)
+  context.strokeStyle = '#f4e6a1'; context.lineWidth = Math.max(2, 4 * camera.zoom); context.stroke(); context.restore()
+}
+
+function localWorld(anchor: Vector2, heading: number, forward: number, side: number): Vector2 {
+  return {
+    x: anchor.x + Math.cos(heading) * forward - Math.sin(heading) * side,
+    y: anchor.y + Math.sin(heading) * forward + Math.cos(heading) * side,
+  }
+}
+
+function drawBuilding(context: CanvasRenderingContext2D, decoration: TrackDecoration, camera: CameraState, viewport: Viewport): void {
+  const width = (105 + decoration.variant * 14) * decoration.scale
+  const depth = (78 + (decoration.variant % 2) * 22) * decoration.scale
+  const height = (105 + decoration.variant * 25) * decoration.scale
+  const corners = [[-width/2,-depth/2],[width/2,-depth/2],[width/2,depth/2],[-width/2,depth/2]].map(([f,s]) =>
+    projectWorldPoint(localWorld(decoration.position, decoration.heading, f!, s!), camera, viewport))
+  const tops = [[-width/2,-depth/2],[width/2,-depth/2],[width/2,depth/2],[-width/2,depth/2]].map(([f,s]) =>
+    projectWorldPoint(localWorld(decoration.position, decoration.heading, f!, s!), camera, viewport, height))
+  context.lineWidth = Math.max(1, camera.zoom * 2)
+  polygon(context, [corners[1]!, corners[2]!, tops[2]!, tops[1]!], '#668a91', '#304d55')
+  polygon(context, [corners[2]!, corners[3]!, tops[3]!, tops[2]!], '#52747c', '#304d55')
+  const roofs = ['#e3a869','#b88194','#75a8a0','#9b8fc2']
+  polygon(context, tops, roofs[decoration.variant % roofs.length]!, '#304d55')
+  context.strokeStyle = '#d8edf0'; context.lineWidth = Math.max(1, camera.zoom * 3)
+  for (const ratio of [.28,.62]) {
+    context.beginPath(); context.moveTo(corners[2]!.x + (corners[1]!.x-corners[2]!.x)*ratio, corners[2]!.y + (corners[1]!.y-corners[2]!.y)*ratio)
+    context.lineTo(tops[2]!.x + (tops[1]!.x-tops[2]!.x)*ratio, tops[2]!.y + (tops[1]!.y-tops[2]!.y)*ratio); context.stroke()
+  }
+}
+
+function drawTree(context: CanvasRenderingContext2D, decoration: TrackDecoration, camera: CameraState, viewport: Viewport): void {
+  const ground = projectWorldPoint(decoration.position, camera, viewport)
+  const trunkTop = projectWorldPoint(decoration.position, camera, viewport, 58 * decoration.scale)
+  context.fillStyle = 'rgba(28,53,42,.24)'; context.beginPath(); context.ellipse(ground.x+12*camera.zoom, ground.y+7*camera.zoom, 30*camera.zoom, 12*camera.zoom, .15, 0, Math.PI*2); context.fill()
+  context.strokeStyle = '#684a34'; context.lineWidth = Math.max(4, 9*camera.zoom); context.beginPath(); context.moveTo(ground.x,ground.y); context.lineTo(trunkTop.x,trunkTop.y); context.stroke()
+  const colors = ['#3f805d','#5b9c68','#79b36f']
+  colors.forEach((color,index) => { context.fillStyle=color; context.beginPath(); context.arc(trunkTop.x+(index-1)*10*camera.zoom,trunkTop.y-index*7*camera.zoom,(24-index*3)*camera.zoom,0,Math.PI*2); context.fill() })
+}
+
+function drawLight(context: CanvasRenderingContext2D, decoration: TrackDecoration, camera: CameraState, viewport: Viewport): void {
+  const base = projectWorldPoint(decoration.position,camera,viewport)
+  const top = projectWorldPoint(decoration.position,camera,viewport,82)
+  context.strokeStyle='#3c565d'; context.lineWidth=Math.max(2,4*camera.zoom); context.beginPath(); context.moveTo(base.x,base.y); context.lineTo(top.x,top.y); context.lineTo(top.x+14*camera.zoom,top.y); context.stroke()
+  context.fillStyle='#ffe6a1'; context.beginPath(); context.arc(top.x+16*camera.zoom,top.y+2*camera.zoom,6*camera.zoom,0,Math.PI*2); context.fill()
+}
+
+function scooterPoint(vehicle: VehicleState, camera: CameraState, viewport: Viewport, forward: number, side: number, height=0): Vector2 {
+  return projectWorldPoint(localWorld(vehicle.worldPosition, vehicle.heading, forward, side),camera,viewport,height)
+}
+
+function drawScooter(context: CanvasRenderingContext2D, vehicle: VehicleState, camera: CameraState, viewport: Viewport): void {
+  const police = vehicle.role === 'police'; const zoom=camera.zoom
+  const halfWidth = VEHICLE_VISUAL.width / 2
+  const riderHeight = VEHICLE_VISUAL.riderHeight
+  const back=scooterPoint(vehicle,camera,viewport,-VEHICLE_VISUAL.length/2,0)
+  const front=scooterPoint(vehicle,camera,viewport,VEHICLE_VISUAL.length/2,0)
+  context.strokeStyle='rgba(16,29,32,.28)'; context.lineWidth=18*zoom; context.beginPath(); context.moveTo(back.x+9*zoom,back.y+10*zoom); context.lineTo(front.x+9*zoom,front.y+10*zoom); context.stroke()
+  context.fillStyle='#17242a'; for(const wheel of [back,front]){context.beginPath();context.ellipse(wheel.x,wheel.y,12*zoom,7*zoom,0,0,Math.PI*2);context.fill()}
+  const deckL=scooterPoint(vehicle,camera,viewport,-24,-halfWidth,10), deckR=scooterPoint(vehicle,camera,viewport,25,-halfWidth,10)
+  const deckR2=scooterPoint(vehicle,camera,viewport,25,halfWidth,10), deckL2=scooterPoint(vehicle,camera,viewport,-24,halfWidth,10)
+  polygon(context,[deckL,deckR,deckR2,deckL2],police?'#39a8cf':'#e47a45','#18343e')
+  const stem=scooterPoint(vehicle,camera,viewport,29,0,52); context.strokeStyle=police?'#d7f4fb':'#7a4b85';context.lineWidth=5*zoom;context.beginPath();context.moveTo(front.x,front.y);context.lineTo(stem.x,stem.y);context.stroke()
+  const feet=scooterPoint(vehicle,camera,viewport,-5,0,riderHeight * .22), body=scooterPoint(vehicle,camera,viewport,-7,0,riderHeight * .78), head=scooterPoint(vehicle,camera,viewport,-7,0,riderHeight + 10)
+  context.strokeStyle=police?'#173e63':'#463047'; context.lineWidth=10*zoom; context.beginPath();context.moveTo(feet.x,feet.y);context.lineTo(body.x,body.y);context.lineTo(stem.x,stem.y);context.stroke()
+  context.fillStyle=police?'#e8f5f7':'#d39b77';context.beginPath();context.arc(head.x,head.y,10*zoom,0,Math.PI*2);context.fill()
+  context.fillStyle=police?'#246d9c':'#5d3a67';context.beginPath();context.arc(head.x-2*zoom,head.y-4*zoom,11*zoom,Math.PI,Math.PI*2);context.fill()
+  if(police){context.fillStyle='#ef6570';context.fillRect(body.x-8*zoom,body.y-8*zoom,7*zoom,5*zoom);context.fillStyle='#62d4eb';context.fillRect(body.x,body.y-8*zoom,7*zoom,5*zoom)}
+  else { const pack=scooterPoint(vehicle,camera,viewport,-13,8,60);context.fillStyle='#8c5b3f';context.beginPath();context.arc(pack.x,pack.y,10*zoom,0,Math.PI*2);context.fill() }
+}
+
+export function renderDebugScene(context: CanvasRenderingContext2D, track: Track, state: PursuitState, viewport: Viewport, options: RenderSceneOptions): void {
+  const pixelRatio = options.pixelRatio ?? 1
+  context.setTransform(1,0,0,1,0,0)
+  context.clearRect(0,0,viewport.width * pixelRatio,viewport.height * pixelRatio)
+  context.setTransform(pixelRatio,0,0,pixelRatio,0,0)
+  drawGround(context,viewport,options.camera);drawRoad(context,track,options.camera,viewport)
+  const items: {depth:number;draw:()=>void}[] = []
+  for(const decoration of track.decorations){const point=projectWorldPoint(decoration.position,options.camera,viewport);if(shouldRenderDecorationNearFocus(decoration,state,options.mode,track.roadWidth)&&(options.mode==='overview'||(point.x>-300&&point.x<viewport.width+300&&point.y>-350&&point.y<viewport.height+300)))items.push({depth:point.y,draw:()=>decoration.kind==='building'?drawBuilding(context,decoration,options.camera,viewport):decoration.kind==='tree'?drawTree(context,decoration,options.camera,viewport):drawLight(context,decoration,options.camera,viewport)})}
+  for(const vehicle of [state.police,state.thief]){const point=projectWorldPoint(vehicle.worldPosition,options.camera,viewport);items.push({depth:point.y,draw:()=>drawScooter(context,vehicle,options.camera,viewport)})}
+  items.sort((a,b)=>a.depth-b.depth).forEach((item)=>item.draw())
 }

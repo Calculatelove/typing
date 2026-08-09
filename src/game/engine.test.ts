@@ -7,6 +7,7 @@ import {
 } from './engine'
 import { getThiefLead } from './pursuit'
 import { createDefaultTrack } from './track'
+import { smoothPlayerSpeed } from './speedModel'
 
 describe('固定时间步追逐引擎', () => {
   it('创建不会立即抓捕或立即掉头的调试世界', () => {
@@ -60,5 +61,37 @@ describe('固定时间步追逐引擎', () => {
       debug.state.police.trackPosition + debug.state.police.speed * debug.config.maxDeltaSeconds,
       7,
     )
+  })
+
+  it('玩家速度在固定步内更新时不同渲染 FPS 的位置一致', () => {
+    const track = createDefaultTrack()
+    const debug = createDebugPursuit(track)
+    const simulate = (fps: number) => {
+      let actualSpeed = 0
+      let frame = {
+        state: {
+          ...debug.state,
+          police: { ...debug.state.police, speed: 0 },
+          thief: { ...debug.state.thief, speed: 0 },
+        },
+        accumulatorSeconds: 0,
+      }
+      for (let index = 0; index < fps; index += 1) {
+        frame = advancePursuitFrame(track, frame, 1 / fps, debug.config, (state, stepSeconds) => {
+          actualSpeed = smoothPlayerSpeed(actualSpeed, 240, stepSeconds)
+          return { ...state, thief: { ...state.thief, speed: actualSpeed } }
+        })
+      }
+      return { actualSpeed, position: frame.state.thief.trackPosition }
+    }
+
+    const at30 = simulate(30)
+    const at60 = simulate(60)
+    const at144 = simulate(144)
+    expect(at30.actualSpeed).toBeGreaterThan(230)
+    expect(at60.actualSpeed).toBeCloseTo(at30.actualSpeed, 8)
+    expect(at144.actualSpeed).toBeCloseTo(at30.actualSpeed, 8)
+    expect(at60.position).toBeCloseTo(at30.position, 8)
+    expect(at144.position).toBeCloseTo(at30.position, 8)
   })
 })
