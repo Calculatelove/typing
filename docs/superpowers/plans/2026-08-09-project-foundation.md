@@ -258,11 +258,11 @@ git commit -m "feat: add initialized project page"
 - Consumes: only TypeScript; no React, DOM, Canvas, article data, audio behavior, or AI behavior.
 - Produces: stable filesystem boundaries for later phases without exporting invented runtime APIs.
 
-- [ ] **Step 1: Create boundary modules without feature behavior**
+- [x] **Step 1: Create boundary modules without feature behavior**
 
 Each file contains a concise responsibility comment and `export {}` so it is an isolated TypeScript module. `types.ts` states that shared engine types will live there; the other game modules respectively reserve track geometry, vehicle state, simulation orchestration, AI control, and player speed modeling. These are structural skeleton files explicitly requested for this phase, not production behavior.
 
-- [ ] **Step 2: Verify the skeleton compiles and lints**
+- [x] **Step 2: Verify the skeleton compiles and lints**
 
 Run:
 
@@ -273,7 +273,7 @@ npm run lint
 
 Expected: both commands exit successfully with no errors.
 
-- [ ] **Step 3: Commit the architecture boundaries**
+- [x] **Step 3: Commit the architecture boundaries**
 
 ```bash
 git add src/components src/game src/input src/articles src/audio src/utils
