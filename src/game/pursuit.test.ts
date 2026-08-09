@@ -85,6 +85,7 @@ describe('追逐参数', () => {
       { reverseHysteresis: -1 },
       { reverseCooldownSeconds: -1 },
       { maxDeltaSeconds: 0 },
+      { maxDeltaSeconds: 0.2 },
     ]
 
     for (const override of invalidOverrides) {
@@ -133,6 +134,16 @@ describe('抓捕事件', () => {
       lead: config.catchDistance * 0.5,
       policeSpeed: 10,
       thiefSpeed: 20,
+    })
+
+    expect(stepPursuit(track, state, 0.1, config).captured).toBe(false)
+  })
+
+  it.each([0, -0.5])('从抓捕阈值上或阈值下开始不会凭空抓捕', (offset) => {
+    const state = makeState({
+      lead: config.catchDistance + offset,
+      policeSpeed: 30,
+      thiefSpeed: 10,
     })
 
     expect(stepPursuit(track, state, 0.1, config).captured).toBe(false)
@@ -192,6 +203,19 @@ describe('快套圈同步掉头', () => {
     expect(next.reverseCount).toBe(1)
   })
 
+  it('armed 状态从阈值上方开始时不会伪造一次穿越掉头', () => {
+    const state = makeState({
+      lead: track.length - config.reverseThreshold + 10,
+      policeSpeed: 10,
+      thiefSpeed: 30,
+    })
+    const next = stepPursuit(track, state, 0.05, config)
+
+    expect(next.reverseCount).toBe(0)
+    expect(next.police.direction).toBe(1)
+    expect(next.thief.direction).toBe(1)
+  })
+
   it('掉头后按新方向重新计算为 reverseThreshold 的距离关系', () => {
     const state = makeState({
       lead: track.length - config.reverseThreshold,
@@ -240,6 +264,42 @@ describe('快套圈同步掉头', () => {
     expect(state.reverseCooldownRemaining).toBe(0)
     expect(state.reverseArmed).toBe(true)
     expect(state.reverseCount).toBe(1)
+  })
+
+  it('cooldown 已归零时仍由 hysteresis 边界单独控制重新 armed', () => {
+    const rearmBoundary = track.length - config.reverseThreshold - config.reverseHysteresis
+    const insideHysteresis = makeState({
+      lead: rearmBoundary + 1,
+      policeSpeed: 10,
+      thiefSpeed: 10,
+      reverseArmed: false,
+    })
+    const outsideHysteresis = makeState({
+      lead: rearmBoundary - 1,
+      policeSpeed: 10,
+      thiefSpeed: 10,
+      reverseArmed: false,
+    })
+
+    expect(stepPursuit(track, insideHysteresis, 0, config).reverseArmed).toBe(false)
+    expect(stepPursuit(track, outsideHysteresis, 0, config).reverseArmed).toBe(true)
+  })
+
+  it('重新 armed 后可以完成第二次同步掉头', () => {
+    const threshold = track.length - config.reverseThreshold
+    let state = stepPursuit(
+      track,
+      makeState({ lead: threshold, policeSpeed: 0, thiefSpeed: track.length }),
+      0,
+      config,
+    )
+    for (let step = 0; step < 8; step += 1) {
+      state = stepPursuit(track, state, 0.1, config)
+    }
+
+    expect(state.reverseCount).toBe(2)
+    expect(state.police.direction).toBe(1)
+    expect(state.thief.direction).toBe(1)
   })
 
   it('执行掉头后用新方向完成当前时间步的剩余部分', () => {

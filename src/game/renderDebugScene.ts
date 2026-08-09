@@ -1,4 +1,4 @@
-import type { PursuitState, Track, TrackSample, VehicleState } from './types'
+import type { PursuitState, Track, TrackDecoration, VehicleState } from './types'
 
 export interface DebugViewport {
   readonly width: number
@@ -52,35 +52,28 @@ function roundedRectangle(
   context.closePath()
 }
 
-function withTrackTransform(
+function withDecorationTransform(
   context: CanvasRenderingContext2D,
-  sample: TrackSample,
-  side: 1 | -1,
-  distance: number,
+  decoration: TrackDecoration,
   draw: () => void,
 ): void {
   context.save()
-  context.translate(
-    sample.position.x + sample.normal.x * side * distance,
-    sample.position.y + sample.normal.y * side * distance,
-  )
-  context.rotate(sample.heading)
+  context.translate(decoration.position.x, decoration.position.y)
+  context.rotate(decoration.heading)
+  context.scale(decoration.scale, decoration.scale)
   draw()
   context.restore()
 }
 
 function drawBuilding(
   context: CanvasRenderingContext2D,
-  sample: TrackSample,
-  side: 1 | -1,
-  index: number,
-  roadWidth: number,
+  decoration: TrackDecoration,
 ): void {
-  const width = 54 + (index % 3) * 14
-  const height = 42 + (index % 4) * 10
-  withTrackTransform(context, sample, side, roadWidth * 1.25 + height / 2, () => {
+  const width = 54 + (decoration.variant % 3) * 14
+  const height = 42 + (decoration.variant % 4) * 10
+  withDecorationTransform(context, decoration, () => {
     roundedRectangle(context, -width / 2, -height / 2, width, height, 7)
-    context.fillStyle = ['#d9aa76', '#c98572', '#8aa6a3', '#bda5d2'][index % 4]!
+    context.fillStyle = ['#d9aa76', '#c98572', '#8aa6a3', '#bda5d2'][decoration.variant % 4]!
     context.fill()
     context.strokeStyle = '#243b46'
     context.lineWidth = 3
@@ -98,11 +91,9 @@ function drawBuilding(
 
 function drawTree(
   context: CanvasRenderingContext2D,
-  sample: TrackSample,
-  side: 1 | -1,
-  roadWidth: number,
+  decoration: TrackDecoration,
 ): void {
-  withTrackTransform(context, sample, side, roadWidth * 1.18, () => {
+  withDecorationTransform(context, decoration, () => {
     context.fillStyle = '#6d4931'
     context.fillRect(-3, -2, 6, 18)
     context.beginPath()
@@ -119,11 +110,9 @@ function drawTree(
 
 function drawStreetLight(
   context: CanvasRenderingContext2D,
-  sample: TrackSample,
-  side: 1 | -1,
-  roadWidth: number,
+  decoration: TrackDecoration,
 ): void {
-  withTrackTransform(context, sample, side, roadWidth * 0.82, () => {
+  withDecorationTransform(context, decoration, () => {
     context.strokeStyle = '#344b56'
     context.lineWidth = 3
     context.beginPath()
@@ -139,20 +128,14 @@ function drawStreetLight(
 }
 
 function drawDecorations(context: CanvasRenderingContext2D, track: Track): void {
-  const closingSampleIndex = track.samples.length - 1
-  const spacing = Math.max(24, Math.floor(closingSampleIndex / 28))
-  let decorationIndex = 0
-
-  for (let index = 0; index < closingSampleIndex; index += spacing) {
-    const sample = track.samples[index]!
-    const side: 1 | -1 = decorationIndex % 2 === 0 ? 1 : -1
-    if (decorationIndex % 3 === 0) {
-      drawBuilding(context, sample, side, decorationIndex, track.roadWidth)
+  for (const decoration of track.decorations) {
+    if (decoration.kind === 'building') {
+      drawBuilding(context, decoration)
+    } else if (decoration.kind === 'tree') {
+      drawTree(context, decoration)
     } else {
-      drawTree(context, sample, side, track.roadWidth)
+      drawStreetLight(context, decoration)
     }
-    drawStreetLight(context, sample, side === 1 ? -1 : 1, track.roadWidth)
-    decorationIndex += 1
   }
 }
 

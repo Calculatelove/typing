@@ -73,6 +73,63 @@ describe('闭合道路', () => {
     expect(track.samples.length).toBeGreaterThan(500)
   })
 
+  it('拒绝包含过尖折返的控制点', () => {
+    expect(() =>
+      createClosedTrack([
+        { x: -200, y: -100 },
+        { x: 200, y: -100 },
+        { x: -190, y: -80 },
+        { x: 180, y: 120 },
+        { x: -200, y: 150 },
+      ]),
+    ).toThrow(/转角/)
+  })
+
+  it('拒绝发生道路自交的控制点', () => {
+    expect(() =>
+      createClosedTrack([
+        { x: -160, y: -120 },
+        { x: 160, y: 120 },
+        { x: -160, y: 120 },
+        { x: 160, y: -120 },
+      ]),
+    ).toThrow(/自交/)
+  })
+
+  it('拒绝不相邻路段间距小于路面安全宽度的道路', () => {
+    expect(() =>
+      createClosedTrack(
+        [
+          { x: -180, y: -35 },
+          { x: 180, y: -35 },
+          { x: 180, y: 35 },
+          { x: -180, y: 35 },
+        ],
+        { roadWidth: 100 },
+      ),
+    ).toThrow(/间距/)
+  })
+
+  it('用显式 seed 生成可复现且与规则分离的装饰描述', () => {
+    const controlPoints = [
+      { x: -200, y: -140 },
+      { x: 220, y: -120 },
+      { x: 240, y: 180 },
+      { x: -230, y: 190 },
+    ]
+    const first = createClosedTrack(controlPoints, { decorationSeed: 42 })
+    const again = createClosedTrack(controlPoints, { decorationSeed: 42 })
+    const different = createClosedTrack(controlPoints, { decorationSeed: 43 })
+
+    expect(first.decorationSeed).toBe(42)
+    expect(first.decorations.length).toBeGreaterThan(20)
+    expect(first.decorations).toEqual(again.decorations)
+    expect(first.decorations).not.toEqual(different.decorations)
+    expect(first.decorations.every((decoration) =>
+      Number.isFinite(decoration.position.x) && Number.isFinite(decoration.position.y),
+    )).toBe(true)
+  })
+
   it('拒绝无法构成闭合样条的控制点和无效道路宽度', () => {
     expect(() =>
       createClosedTrack([

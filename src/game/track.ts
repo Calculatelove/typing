@@ -1,8 +1,17 @@
 import { lerpVector, mod, normalizeVector } from './math'
-import type { Track, TrackBounds, TrackSample, Vector2 } from './types'
+import type {
+  Track,
+  TrackBounds,
+  TrackDecoration,
+  TrackSample,
+  Vector2,
+} from './types'
 
 const DEFAULT_SAMPLES_PER_SEGMENT = 64
 const DEFAULT_ROAD_WIDTH = 72
+const DEFAULT_DECORATION_SEED = 2_026_080_9
+const MAX_CONTROL_POINT_TURN = Math.PI * (165 / 180)
+const MIN_ROAD_SPACING_FACTOR = 1.05
 
 export const DEFAULT_TRACK_CONTROL_POINTS: readonly Vector2[] = [
   { x: -520, y: -80 },
@@ -99,9 +108,200 @@ function toTrackSample(point: CurvePoint, distance: number): TrackSample {
   }
 }
 
+function cross(origin: Vector2, first: Vector2, second: Vector2): number {
+  return (
+    (first.x - origin.x) * (second.y - origin.y) -
+    (first.y - origin.y) * (second.x - origin.x)
+  )
+}
+
+function pointOnSegment(point: Vector2, start: Vector2, end: Vector2): boolean {
+  const epsilon = 1e-8
+  return (
+    point.x >= Math.min(start.x, end.x) - epsilon &&
+    point.x <= Math.max(start.x, end.x) + epsilon &&
+    point.y >= Math.min(start.y, end.y) - epsilon &&
+    point.y <= Math.max(start.y, end.y) + epsilon
+  )
+}
+
+function segmentsIntersect(
+  firstStart: Vector2,
+  firstEnd: Vector2,
+  secondStart: Vector2,
+  secondEnd: Vector2,
+): boolean {
+  const firstSideStart = cross(firstStart, firstEnd, secondStart)
+  const firstSideEnd = cross(firstStart, firstEnd, secondEnd)
+  const secondSideStart = cross(secondStart, secondEnd, firstStart)
+  const secondSideEnd = cross(secondStart, secondEnd, firstEnd)
+  const epsilon = 1e-8
+
+  if (
+    ((firstSideStart > epsilon && firstSideEnd < -epsilon) ||
+      (firstSideStart < -epsilon && firstSideEnd > epsilon)) &&
+    ((secondSideStart > epsilon && secondSideEnd < -epsilon) ||
+      (secondSideStart < -epsilon && secondSideEnd > epsilon))
+  ) {
+    return true
+  }
+
+  return (
+    (Math.abs(firstSideStart) <= epsilon && pointOnSegment(secondStart, firstStart, firstEnd)) ||
+    (Math.abs(firstSideEnd) <= epsilon && pointOnSegment(secondEnd, firstStart, firstEnd)) ||
+    (Math.abs(secondSideStart) <= epsilon && pointOnSegment(firstStart, secondStart, secondEnd)) ||
+    (Math.abs(secondSideEnd) <= epsilon && pointOnSegment(firstEnd, secondStart, secondEnd))
+  )
+}
+
+function validateControlPointTurns(controlPoints: readonly Vector2[]): void {
+  for (let index = 0; index < controlPoints.length; index += 1) {
+    const previous = controlPointAt(controlPoints, index - 1)
+    const current = controlPointAt(controlPoints, index)
+    const next = controlPointAt(controlPoints, index + 1)
+    const incoming = normalizeVector({ x: current.x - previous.x, y: current.y - previous.y })
+    const outgoing = normalizeVector({ x: next.x - current.x, y: next.y - current.y })
+    const dot = Math.max(-1, Math.min(1, incoming.x * outgoing.x + incoming.y * outgoing.y))
+    if (Math.acos(dot) > MAX_CONTROL_POINT_TURN) {
+      throw new RangeError('道路控制点形成了过尖转角。')
+    }
+  }
+}
+
+function validateNoSelfIntersection(points: readonly CurvePoint[]): void {
+  const segmentCount = points.length
+  for (let firstIndex = 0; firstIndex < segmentCount; firstIndex += 1) {
+    const firstEndIndex = (firstIndex + 1) % segmentCount
+    for (let secondIndex = firstIndex + 1; secondIndex < segmentCount; secondIndex += 1) {
+      const secondEndIndex = (secondIndex + 1) % segmentCount
+      const segmentsAreAdjacent = (
+        firstEndIndex === secondIndex ||
+        secondEndIndex === firstIndex
+      )
+      if (segmentsAreAdjacent) {
+        continue
+      }
+      if (
+        segmentsIntersect(
+          points[firstIndex]!.position,
+          points[firstEndIndex]!.position,
+          points[secondIndex]!.position,
+          points[secondEndIndex]!.position,
+        )
+      ) {
+        throw new RangeError('道路中心线不能自交。')
+      }
+    }
+  }
+}
+
+function validateRoadSpacing(samples: readonly TrackSample[], length: number, roadWidth: number): void {
+  const closingSampleIndex = samples.length - 1
+  const localArcDistance = roadWidth * 2.5
+  const minimumSpacing = roadWidth * MIN_ROAD_SPACING_FACTOR
+
+  for (let firstIndex = 0; firstIndex < closingSampleIndex; firstIndex += 1) {
+    const first = samples[firstIndex]!
+    for (let secondIndex = firstIndex + 1; secondIndex < closingSampleIndex; secondIndex += 1) {
+      const second = samples[secondIndex]!
+      const forwardArcDistance = second.distance - first.distance
+      const shortestArcDistance = Math.min(forwardArcDistance, length - forwardArcDistance)
+      if (shortestArcDistance <= localArcDistance) {
+        continue
+      }
+      if (
+        Math.hypot(
+          second.position.x - first.position.x,
+          second.position.y - first.position.y,
+        ) < minimumSpacing
+      ) {
+        throw new RangeError('不相邻路段间距小于道路安全宽度。')
+      }
+    }
+  }
+}
+
+function seededUnit(seed: number, index: number): number {
+  let value = (seed ^ Math.imul(index + 1, 0x9e37_79b1)) >>> 0
+  value ^= value << 13
+  value ^= value >>> 17
+  value ^= value << 5
+  return (value >>> 0) / 0x1_0000_0000
+}
+
+function decorationAt(
+  sample: TrackSample,
+  id: string,
+  kind: TrackDecoration['kind'],
+  side: 1 | -1,
+  offset: number,
+  variant: number,
+  scale: number,
+): TrackDecoration {
+  return {
+    id,
+    kind,
+    position: {
+      x: sample.position.x + sample.normal.x * side * offset,
+      y: sample.position.y + sample.normal.y * side * offset,
+    },
+    heading: sample.heading,
+    variant,
+    scale,
+  }
+}
+
+function createDecorations(
+  samples: readonly TrackSample[],
+  roadWidth: number,
+  seed: number,
+): readonly TrackDecoration[] {
+  const decorations: TrackDecoration[] = []
+  const closingSampleIndex = samples.length - 1
+  const spacing = Math.max(24, Math.floor(closingSampleIndex / 28))
+  let decorationIndex = 0
+
+  for (let sampleIndex = 0; sampleIndex < closingSampleIndex; sampleIndex += spacing) {
+    const sample = samples[sampleIndex]!
+    const random = seededUnit(seed, decorationIndex)
+    const side: 1 | -1 = random < 0.5 ? 1 : -1
+    const kind: TrackDecoration['kind'] = decorationIndex % 3 === 0 ? 'building' : 'tree'
+    const variant = Math.floor(seededUnit(seed, decorationIndex + 101) * 4)
+    const scale = 0.88 + seededUnit(seed, decorationIndex + 211) * 0.24
+    const mainOffset = kind === 'building' ? roadWidth * 1.75 : roadWidth * 1.25
+    decorations.push(
+      decorationAt(
+        sample,
+        `roadside-${decorationIndex}`,
+        kind,
+        side,
+        mainOffset,
+        variant,
+        scale,
+      ),
+      decorationAt(
+        sample,
+        `light-${decorationIndex}`,
+        'streetLight',
+        side === 1 ? -1 : 1,
+        roadWidth * 0.82,
+        variant,
+        0.9 + seededUnit(seed, decorationIndex + 307) * 0.2,
+      ),
+    )
+    decorationIndex += 1
+  }
+
+  return decorations
+}
+
 export function createClosedTrack(
   controlPoints: readonly Vector2[],
-  options: { readonly samplesPerSegment?: number; readonly roadWidth?: number } = {},
+  options: {
+    readonly samplesPerSegment?: number
+    readonly roadWidth?: number
+    readonly decorationSeed?: number
+  } = {},
 ): Track {
   if (controlPoints.length < 4) {
     throw new RangeError('闭合道路至少需要 4 个控制点。')
@@ -112,12 +312,17 @@ export function createClosedTrack(
 
   const samplesPerSegment = options.samplesPerSegment ?? DEFAULT_SAMPLES_PER_SEGMENT
   const roadWidth = options.roadWidth ?? DEFAULT_ROAD_WIDTH
+  const decorationSeed = options.decorationSeed ?? DEFAULT_DECORATION_SEED
   if (!Number.isInteger(samplesPerSegment) || samplesPerSegment < 8) {
     throw new RangeError('每段采样数必须是至少为 8 的整数。')
   }
   if (!Number.isFinite(roadWidth) || roadWidth <= 0) {
     throw new RangeError('道路宽度必须是有限正数。')
   }
+  if (!Number.isSafeInteger(decorationSeed)) {
+    throw new RangeError('装饰 seed 必须是安全整数。')
+  }
+  validateControlPointTurns(controlPoints)
 
   const curvePoints: CurvePoint[] = []
   for (let segment = 0; segment < controlPoints.length; segment += 1) {
@@ -152,6 +357,8 @@ export function createClosedTrack(
     throw new RangeError('道路总弧长必须大于零。')
   }
   samples.push(toTrackSample(first, cumulativeDistance))
+  validateNoSelfIntersection(curvePoints)
+  validateRoadSpacing(samples, cumulativeDistance, roadWidth)
 
   return {
     controlPoints: controlPoints.map((point) => ({ ...point })),
@@ -159,6 +366,8 @@ export function createClosedTrack(
     length: cumulativeDistance,
     roadWidth,
     bounds: boundsFor(curvePoints),
+    decorationSeed,
+    decorations: createDecorations(samples, roadWidth, decorationSeed),
   }
 }
 

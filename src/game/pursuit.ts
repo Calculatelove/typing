@@ -1,6 +1,6 @@
 import { mod } from './math'
 import type { Direction, PursuitConfig, PursuitState, Track } from './types'
-import { advanceVehicle, reverseVehicle } from './vehicle'
+import { MAX_DELTA_SECONDS, advanceVehicle, reverseVehicle } from './vehicle'
 
 export function getThiefLead(
   policePosition: number,
@@ -53,8 +53,8 @@ export function validatePursuitConfig(
   if (config.reverseCooldownSeconds < 0) {
     throw new RangeError('掉头 cooldown 不能是负数。')
   }
-  if (config.maxDeltaSeconds <= 0) {
-    throw new RangeError('最大 delta time 必须大于零。')
+  if (config.maxDeltaSeconds <= 0 || config.maxDeltaSeconds > MAX_DELTA_SECONDS) {
+    throw new RangeError('最大 delta time 必须大于零且不能超过 0.1 秒。')
   }
 }
 
@@ -119,7 +119,7 @@ export function stepPursuit(
   const relativeSpeed = state.thief.speed - state.police.speed
   const epsilon = Math.max(1e-9, track.length * 1e-12)
 
-  if (relativeSpeed < -epsilon && lead >= config.catchDistance - epsilon) {
+  if (relativeSpeed < -epsilon && lead > config.catchDistance + epsilon) {
     const catchTime = Math.max(
       0,
       (lead - config.catchDistance) / -relativeSpeed,
@@ -136,7 +136,11 @@ export function stepPursuit(
   }
 
   const reverseBoundary = track.length - config.reverseThreshold
-  if (relativeSpeed > epsilon && state.reverseArmed) {
+  if (
+    relativeSpeed > epsilon &&
+    state.reverseArmed &&
+    lead <= reverseBoundary + epsilon
+  ) {
     const reverseTime = lead >= reverseBoundary - epsilon
       ? 0
       : (reverseBoundary - lead) / relativeSpeed

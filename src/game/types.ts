@@ -22,12 +22,25 @@ export interface TrackBounds {
   readonly maxY: number
 }
 
+export type TrackDecorationKind = 'building' | 'tree' | 'streetLight'
+
+export interface TrackDecoration {
+  readonly id: string
+  readonly kind: TrackDecorationKind
+  readonly position: Vector2
+  readonly heading: number
+  readonly variant: number
+  readonly scale: number
+}
+
 export interface Track {
   readonly controlPoints: readonly Vector2[]
   readonly samples: readonly TrackSample[]
   readonly length: number
   readonly roadWidth: number
   readonly bounds: TrackBounds
+  readonly decorationSeed: number
+  readonly decorations: readonly TrackDecoration[]
 }
 
 export interface VehicleState {
