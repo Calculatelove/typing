@@ -44,6 +44,8 @@ Typing Gaming 是纯单人网页打字追逐游戏。游戏只有警察和小偷
 - 按键音开关。
 - 错误提示音开关。
 
+第 5 轮正式页面使用版本化键 `typing-gaming.settings.v1` 把全部开局设置保存到 localStorage。读取必须逐字段验证；存储不可用、JSON 损坏、枚举非法或文章 ID 失效时回退到安全默认值，不能阻止离线游戏启动。
+
 ## 5. 游戏状态机
 
 主状态为 `setup`、`ready`、`running`、`won` 和 `lost`。
@@ -219,6 +221,8 @@ actual += (target - actual) × (1 - exp(-dt / tau))
 
 ## 12. 文章库
 
+第 5 轮在最终文章库完成前使用 12 篇原创 fixture：英文和中文的短、中、长各 2 篇。fixture 复用正式元数据、筛选和计分规则，并明确标记为 Typing Gaming 原创 fixture；它们不计入最终 120 篇交付数量。
+
 - 英文短、中、长各 20 篇，共 60 篇。
 - 中文短、中、长各 20 篇，共 60 篇。
 - 总计 120 篇。
@@ -246,6 +250,11 @@ actual += (target - actual) × (1 - exp(-dt / tau))
 - 电动车和骑手视觉尺寸使用独立配置，不得简单乘以地图 `WORLD_SCALE`；Play 模式下两辆车必须保持明显可辨。
 - Play 模式只显示摄像机附近的局部世界；全图只能通过明确的 Debug 视图查看。
 - 音效通过 Web Audio API 合成，并遵守按键音和错误音独立开关。
+- 正式页面使用 `Setup -> Game -> Result` 显式页面流，不要求路由。正式 Game 摄像机始终跟随当前玩家，不显示全图 Debug 或摄像机切换；第 2～4 轮开发预览可以继续保留但不作为正式入口。
+- 正式文章面板必须固定布局尺寸，并分别显示已正确部分、醒目的当前 grapheme 和剩余部分；错误反馈不得造成布局跳动。
+- HUD 还必须显示 Accuracy、文章进度和局级状态。Accuracy 定义为 `correct / (correct + errors)`；尚无输入时显示 `100%`。
+- 结果页显示 Victory / Defeat、固定步累计得到的玩家平均实际速度、Accuracy、Errors、从 running 到终局的完成时间和文章信息。平均速度定义为 `sum(actualSpeed * fixedDt) / runningSeconds`，只用于展示。
+- 正确音为低音量短音；错误音更低且更短。AudioContext 延迟到输入手势后创建。一次中文正式 commit 最多播放一次正确音，一次错误事件最多播放一次错误音；音频失败不得影响输入或游戏模拟。
 - 页面需要键盘可用、清晰焦点、可读对比度和响应式布局。
 
 ## 14. 测试与质量门禁

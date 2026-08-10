@@ -29,6 +29,28 @@ function smoothStep(value: number): number {
   return clamped * clamped * (3 - 2 * clamped)
 }
 
+export function performanceRateToBaseSpeed(
+  trackLength: number,
+  performanceRate: number,
+): number {
+  const safeTrackLength = Math.max(
+    0,
+    Number.isFinite(trackLength) ? trackLength : 0,
+  )
+  const safePerformanceRate = Math.max(
+    0,
+    Math.min(
+      PLAYER_SPEED_CONFIG.maximumPerformanceRate,
+      Number.isFinite(performanceRate) ? performanceRate : 0,
+    ),
+  )
+  return Math.min(
+    safeTrackLength / PLAYER_SPEED_CONFIG.maximumLapSeconds,
+    safeTrackLength / PLAYER_SPEED_CONFIG.referenceLapSeconds
+      * safePerformanceRate / PLAYER_SPEED_CONFIG.referencePerformanceRate,
+  )
+}
+
 export function computePlayerTargetSpeed(input: PlayerTargetSpeedInput): PlayerSpeedSnapshot {
   const safeTrackLength = Math.max(0, Number.isFinite(input.trackLength) ? input.trackLength : 0)
   const performanceRate = Math.max(
@@ -38,8 +60,7 @@ export function computePlayerTargetSpeed(input: PlayerTargetSpeedInput): PlayerS
       Number.isFinite(input.performanceRate) ? input.performanceRate : 0,
     ),
   )
-  const baseSpeed = safeTrackLength / PLAYER_SPEED_CONFIG.referenceLapSeconds
-    * performanceRate / PLAYER_SPEED_CONFIG.referencePerformanceRate
+  const baseSpeed = performanceRateToBaseSpeed(safeTrackLength, performanceRate)
   const idleElapsed = input.lastCorrectAt === undefined
     ? Number.POSITIVE_INFINITY
     : Math.max(0, input.now - input.lastCorrectAt)

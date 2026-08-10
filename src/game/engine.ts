@@ -21,6 +21,11 @@ export type PreparePursuitStep = (
   stepSeconds: number,
 ) => PursuitState
 
+export type FinalizePursuitStep = (
+  state: PursuitState,
+  stepSeconds: number,
+) => boolean
+
 export function createDebugPursuit(track: Track): DebugPursuit {
   const config: PursuitConfig = createWorldPursuitConfig(track)
   validatePursuitConfig(track.length, config)
@@ -46,6 +51,7 @@ export function advancePursuitFrame(
   frameDeltaSeconds: number,
   config: PursuitConfig,
   prepareStep?: PreparePursuitStep,
+  finalizeStep?: FinalizePursuitStep,
 ): PursuitFrameState {
   if (config.maxDeltaSeconds < FIXED_STEP_SECONDS) {
     throw new RangeError('最大 delta time 不能小于固定时间步。')
@@ -57,6 +63,7 @@ export function advancePursuitFrame(
   let accumulatorSeconds = Math.max(0, frame.accumulatorSeconds) + safeFrameDelta
   let state = frame.state
   let completedSteps = 0
+  let stoppedByFinalizer = false
   const epsilon = 1e-12
 
   while (
@@ -68,9 +75,13 @@ export function advancePursuitFrame(
     state = stepPursuit(track, state, FIXED_STEP_SECONDS, config)
     accumulatorSeconds -= FIXED_STEP_SECONDS
     completedSteps += 1
+    if (finalizeStep?.(state, FIXED_STEP_SECONDS) === true) {
+      stoppedByFinalizer = true
+      break
+    }
   }
 
-  if (state.captured) {
+  if (state.captured || stoppedByFinalizer) {
     accumulatorSeconds = 0
   } else if (completedSteps === MAX_FIXED_STEPS_PER_FRAME) {
     accumulatorSeconds = Math.min(accumulatorSeconds, FIXED_STEP_SECONDS)

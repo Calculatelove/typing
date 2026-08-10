@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { computePlayerTargetSpeed, smoothPlayerSpeed } from './speedModel'
+import {
+  computePlayerTargetSpeed,
+  performanceRateToBaseSpeed,
+  smoothPlayerSpeed,
+} from './speedModel'
 
 const trackLength = 9000
 
@@ -16,6 +20,14 @@ function targetAt(performanceRate: number, overrides: Record<string, number | un
 }
 
 describe('玩家目标速度', () => {
+  it('玩家和 AI 可共用相同的表现率基础速度映射', () => {
+    expect(performanceRateToBaseSpeed(trackLength, 50)).toBeCloseTo(trackLength / 90, 8)
+    expect(targetAt(50).baseSpeed).toBeCloseTo(
+      performanceRateToBaseSpeed(trackLength, 50),
+      8,
+    )
+  })
+
   it.each([30, 50, 80])('表现率 %i 产生单调基础速度', (rate) => {
     expect(targetAt(rate).baseSpeed).toBeCloseTo(trackLength / 90 * rate / 50, 8)
   })

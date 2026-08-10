@@ -1,31 +1,43 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
+import { FIXTURE_ARTICLES } from '../articles'
+import { PLAYER_POLICE, PLAYER_THIEF } from '../game/gameSession'
+import type { PlayerRole } from '../game/gameSession'
 import App from './App'
+import { resolveRoundArticle } from './roundSelection'
+import { DEFAULT_GAME_SETTINGS } from './settings'
 
-describe('App', () => {
-  it('呈现可访问的临时追逐调试预览', () => {
+describe('正式 App 页面流', () => {
+  it('默认呈现完整 Setup 而不是开发预览', () => {
     const markup = renderToStaticMarkup(<App />)
+    expect(markup).toContain('<h1>Typing Gaming</h1>')
+    expect(markup).toContain('Start Chase')
+    expect(markup).not.toContain('开发预览')
+    expect(markup).not.toContain('<canvas')
+  })
 
-    expect(markup).toContain('<h1 id="project-title">Typing Gaming</h1>')
-    expect(markup).toContain('输入与动态速度调试')
-    expect(markup).toContain('<canvas')
-    expect(markup).toContain('aria-label="地图与车辆自动追逐画面"')
-    expect(markup).toContain('有向领先距离')
-    expect(markup).toContain('>跟随小偷</button>')
-    expect(markup).toContain('>跟随警察</button>')
-    expect(markup).toContain('>全图 Debug</button>')
-    expect(markup).toContain('aria-pressed="true">跟随小偷</button>')
-    expect(markup).toContain('<textarea')
-    expect(markup).toContain('aria-label="打字输入入口"')
-    expect(markup).toContain('>English</button>')
-    expect(markup).toContain('>中文</button>')
-    expect(markup).toContain('准备中')
-    expect(markup).toContain('Recent performance')
-    expect(markup).toContain('Target speed')
-    expect(markup).toContain('Actual speed')
-    expect(markup).toContain('Combo')
-    expect(markup).toContain('Idle state')
-    expect(markup).toContain('Error penalty')
+  it('两种身份与四档难度都能解析合法文章并开始', () => {
+    for (const playerRole of [PLAYER_POLICE, PLAYER_THIEF] as readonly PlayerRole[]) {
+      for (const difficulty of ['easy', 'normal', 'hard', 'shadow'] as const) {
+        const article = resolveRoundArticle(
+          { ...DEFAULT_GAME_SETTINGS, playerRole, difficulty },
+          FIXTURE_ARTICLES,
+          () => 0.5,
+        )
+        expect(article?.language).toBe('english')
+        expect(article?.length).toBe('short')
+      }
+    }
+  })
+
+  it('Random Article 只从当前语言和长度池选择', () => {
+    const article = resolveRoundArticle({
+      ...DEFAULT_GAME_SETTINGS,
+      language: 'chinese',
+      articleLength: 'long',
+      articleMode: 'random',
+    }, FIXTURE_ARTICLES, () => 0.999)
+    expect(article?.id).toBe('zh-long-night-care')
   })
 })

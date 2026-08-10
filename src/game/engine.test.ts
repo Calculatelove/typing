@@ -94,4 +94,34 @@ describe('固定时间步追逐引擎', () => {
     expect(at60.position).toBeCloseTo(at30.position, 8)
     expect(at144.position).toBeCloseTo(at30.position, 8)
   })
+
+  it('终局回调在固定步结束后立即停止同一渲染帧的剩余补算', () => {
+    const track = createDefaultTrack()
+    const debug = createDebugPursuit(track)
+    const oneStep = advancePursuitFrame(
+      track,
+      { state: debug.state, accumulatorSeconds: 0 },
+      FIXED_STEP_SECONDS,
+      debug.config,
+    )
+    let resolvedSteps = 0
+    const stopped = advancePursuitFrame(
+      track,
+      { state: debug.state, accumulatorSeconds: 0 },
+      FIXED_STEP_SECONDS * 4,
+      debug.config,
+      undefined,
+      () => {
+        resolvedSteps += 1
+        return true
+      },
+    )
+
+    expect(resolvedSteps).toBe(1)
+    expect(stopped.state.police.trackPosition).toBeCloseTo(
+      oneStep.state.police.trackPosition,
+      8,
+    )
+    expect(stopped.accumulatorSeconds).toBe(0)
+  })
 })
